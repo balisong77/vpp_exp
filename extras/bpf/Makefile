@@ -7,6 +7,7 @@ BPF_ROOT ?= /usr/include
 CFLAGS := -O3 -g -Wextra -Wall -target bpf
 # Workaround for Ubuntu/Debian for asm/types.h
 CFLAGS += -I/usr/include/x86_64-linux-gnu
+CFLAGS += -I/opt/vpp/external/x86_64/include
 CFLAGS += -I$(BPF_ROOT)
 #CFLAGS += -DDEBUG
 

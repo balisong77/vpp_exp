@@ -136,3 +136,7 @@ compile_commands.json
 /cmake_install.cmake
 /startup.conf
 /startup.vpp
+
+/build
+*.trace
+*.o
