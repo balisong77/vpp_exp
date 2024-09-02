@@ -86,6 +86,7 @@ setup_iface()
         sudo "${vppctl_binary}" -s "${SOCKFILE}" set ip neighbor "${EthernetX}" 192.168.2.$((index+1)) ${dst_mac_addr[$index]}
         # 将IPv4 L3 fwd流量转回node3 Trex
         sudo "${vppctl_binary}" -s "${SOCKFILE}" ip route add 192.168.3.$((index+1))/32 via 192.168.2.$((index+1)) "${EthernetX}"
+        # pin_core时，将每个网卡的所有队列绑定到同一个worker线程
         if [[ pin_core -eq 1 ]]; then
             for ((queue=0; queue<queues_count; queue++)); do
                 sudo "${vppctl_binary}" -s "${SOCKFILE}" set interface rx-placement "${EthernetX}" queue "${queue}" worker "${index}"
@@ -179,7 +180,9 @@ for ((index=0; index<worker_count; index++)); do
 done
 vpp_start_cmd+="}"
 
+# 执行拼接好的VPP启动命令
 eval $vpp_start_cmd
+
 # sudo "${vpp_binary}" unix "{ runtime-dir ${VPP_RUNTIME_DIR} cli-listen ${SOCKFILE} pidfile ${VPP_REMOTE_PIDFILE} }"                                                              \
 #                         cpu "{ main-core ${main_core} corelist-workers ${worker_core} }"                                                                                            \
 #                         plugins "{ plugin default { enable } plugin dpdk_plugin.so { enable } plugin crypto_native_plugin.so {enable} plugin crypto_openssl_plugin.so {enable} plugin ping_plugin.so { enable } plugin nat_plugin.so {enable} plugin test_batch.so {enable}}"  \
