@@ -5,6 +5,7 @@
  */
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
+#include <bpf/bpf_endian.h>
 #include <xdp/xdp_helpers.h>
 #include <linux/in.h>
 #include <linux/if_ether.h>
@@ -56,7 +57,7 @@ xdp_sock_prog (struct xdp_md *ctx)
   const void *data = (void *) (long) ctx->data;
   const void *data_end = (void *) (long) ctx->data_end;
 
-  bpf_printk("rx %ld bytes packet", (long) data_end - (long) data);
+  // bpf_printk("rx %ld bytes packet", (long) data_end - (long) data);
 
   // /* smallest packet we are interesting in is ip-ip */
   // if (data + sizeof (struct ethhdr) + 2 * sizeof (struct iphdr) > data_end)
@@ -77,12 +78,12 @@ xdp_sock_prog (struct xdp_md *ctx)
   //   {
   //   case IPPROTO_UDP:
   //     {
-	// const struct udphdr *udp = (void *) (ip + 1);
-	// if (udp->dest != ntohs (4789)) /* VxLAN dest port */
-	//   {
-	//     bpf_printk("unsupported udp dst port %x", (int) udp->dest);
-	//     return XDP_PASS;
-	//   }
+  // const struct udphdr *udp = (void *) (ip + 1);
+  // if (udp->dest != ntohs (4789)) /* VxLAN dest port */
+  //   {
+  //     bpf_printk("unsupported udp dst port %x", (int) udp->dest);
+  //     return XDP_PASS;
+  //   }
   //     }
   //   case IPPROTO_IPIP:
   //   case IPPROTO_ESP:
@@ -92,7 +93,38 @@ xdp_sock_prog (struct xdp_md *ctx)
   //     return XDP_PASS;
   //   }
 
-  return bpf_redirect_map (&xsks_map, ctx->rx_queue_index, XDP_PASS);
+  struct ethhdr *eth = data;
+  if ((void *)eth + sizeof(*eth) > data_end)
+    return XDP_PASS;
+  // 根据协议来选择队列
+  // bug: 目前在mlx5驱动上跑，只有redirect到ctx->rx_queue_index,即原队列VPP才能收到包，其他队列均收不到
+  // 详见: https://s3-docs.fd.io/vpp/24.10/developer/devicedrivers/af_xdp.html#mellanox
+
+  // int target_queue = 0;
+  // if (eth->h_proto == bpf_htons(ETH_P_IP)) {
+  //   target_queue = 0;
+  //   bpf_printk("IPv4 protocol, origin rx-queue:%d, target_queue %d\n", ctx->rx_queue_index, target_queue);
+  // } else if (eth->h_proto == bpf_htons(ETH_P_IPV6)) {
+  //   target_queue = 1;
+  //   bpf_printk("IPv6 protocol, origin rx-queue:%d, target_queue %d\n", ctx->rx_queue_index, target_queue);
+  // } else {
+  //    bpf_printk(" Unknown protocol:%d\n", eth->h_proto);
+  // }
+
+  unsigned int target_queue = bpf_get_prandom_u32() % 39;
+  if (target_queue == ctx->rx_queue_index) {
+    return XDP_DROP;
+  }
+
+  // 转发到相应的队列
+  if (bpf_map_lookup_elem(&xsks_map, &target_queue)){
+    return bpf_redirect_map(&xsks_map, target_queue, XDP_PASS);
+  } else {
+    bpf_printk("Error xsk_map[%d] not exsist:\n", target_queue);
+  }
+  return XDP_PASS;
+  // return bpf_redirect_map(&xsks_map, target_queue, XDP_PASS);
+  // return bpf_redirect_map(&xsks_map, ctx->rx_queue_index, XDP_PASS);
 }
 
 /* actually Dual GPLv2/Apache2, but GPLv2 as far as kernel is concerned */

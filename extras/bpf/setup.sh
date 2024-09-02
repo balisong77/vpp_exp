@@ -1,5 +1,5 @@
 #!/bin/bash
-sudo vppctl -s  /run/vpp/rt/cli_rt.sock 'create interface af_xdp host-if ens5f0np0 prog /mnt/disk1/zhaolunqi/vpp/extras/bpf/af_xdp.bpf.o'
+sudo vppctl -s  /run/vpp/rt/cli_rt.sock 'create interface af_xdp host-if ens5f0np0 num-rx-queues all prog /mnt/disk1/zhaolunqi/vpp/extras/bpf/af_xdp.bpf.o'
 
 sudo vppctl -s  /run/vpp/rt/cli_rt.sock 'set int ip addr ens5f0np0/0 192.168.230.105/32'
 

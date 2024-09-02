@@ -140,3 +140,5 @@ compile_commands.json
 /build
 *.trace
 *.o
+*.api
+*.pg

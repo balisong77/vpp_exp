@@ -14,8 +14,9 @@ export vppctl_binary="/usr/local/bin/vppctl"
 export vpp_binary="/usr/local/bin/vpp"
 
 # dpdk绑定的网卡名
-Ethernet0="Ethernet0"
+Ethernet0="ens5f0np0/0"
 Ethernet1="Ethernet1"
+AF_XDP_NIC="ens5f0np0"
 
 # VPP runtime socket目录位置
 VPP_RUNTIME_DIR="/run/vpp/remote"
@@ -71,15 +72,17 @@ cal_cores()
 setup_iface()
 {
     # 网卡设置
-    sudo "${vppctl_binary}" -s "${SOCKFILE}" set interface state "${Ethernet0}" up
+    sudo "${vppctl_binary}" -s "${SOCKFILE}" create interface af_xdp host-if "${AF_XDP_NIC}" num-rx-queues all prog /mnt/disk1/zhaolunqi/vpp/extras/bpf/af_xdp.bpf.o no-syscall-lock
+    sudo "${vppctl_binary}" -s "${SOCKFILE}" set int mtu packet 3000 "${Ethernet0}"
     sudo "${vppctl_binary}" -s "${SOCKFILE}" set interface ip address "${Ethernet0}" 192.168.1.1/24
     sudo "${vppctl_binary}" -s "${SOCKFILE}" enable ip6 interface "${Ethernet0}"
     sudo "${vppctl_binary}" -s "${SOCKFILE}" set interface ip address "${Ethernet0}" ::1:1/112
-    
-    sudo "${vppctl_binary}" -s "${SOCKFILE}" set interface state "${Ethernet1}" up
+    sudo "${vppctl_binary}" -s "${SOCKFILE}" set interface state "${Ethernet0}" up
+
     sudo "${vppctl_binary}" -s "${SOCKFILE}" set interface ip address "${Ethernet1}" 192.168.2.1/24
     sudo "${vppctl_binary}" -s "${SOCKFILE}" enable ip6 interface "${Ethernet1}"
     sudo "${vppctl_binary}" -s "${SOCKFILE}" set interface ip address "${Ethernet1}" ::2:1/112
+    sudo "${vppctl_binary}" -s "${SOCKFILE}" set interface state "${Ethernet1}" up
 
     # 检查网卡是否启动成功
     LOG=$(sudo "${vppctl_binary}" -s "${SOCKFILE}" show interface)
@@ -152,9 +155,8 @@ check_vppctl
 # 启动VPP
 sudo "${vpp_binary}" unix "{ runtime-dir ${VPP_RUNTIME_DIR} cli-listen ${SOCKFILE} pidfile ${VPP_REMOTE_PIDFILE} }"                                                              \
                         cpu "{ main-core ${main_core} corelist-workers ${worker_core} }"                                                                                            \
-                        plugins "{ plugin default { enable } plugin dpdk_plugin.so { enable } plugin crypto_native_plugin.so {enable} plugin crypto_openssl_plugin.so {enable} plugin ping_plugin.so { enable } plugin nat_plugin.so {enable} plugin test_batch.so {enable}}"  \
-                        dpdk "{ dev ${pcie_addr[0]} { name "${Ethernet0}" num-tx-queues ${queues_count} num-rx-queues ${queues_count}} 
-                                dev ${pcie_addr[1]} { name "${Ethernet1}" num-tx-queues ${queues_count} num-rx-queues ${queues_count}}}"
+                        plugins "{ plugin default { enable } plugin dpdk_plugin.so { enable } plugin crypto_native_plugin.so {enable} plugin crypto_openssl_plugin.so {enable} plugin ping_plugin.so { enable } plugin nat_plugin.so {enable} plugin af_xdp_plugin.so { enable } }"  \
+                        dpdk "{ dev ${pcie_addr[1]} { name "${Ethernet1}" num-tx-queues ${queues_count} num-rx-queues ${queues_count}}}"
 
 echo "Remote VPP starting up"
 
