@@ -1,5 +1,5 @@
 /*
- * protocol3.c - skeleton vpp engine plug-in
+ * protocol3_3.c - skeleton vpp engine plug-in
  *
  * Copyright (c) <current-year> <your-organization>
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,24 +17,24 @@
 
 #include <vnet/vnet.h>
 #include <vnet/plugin/plugin.h>
-#include <protocol3/protocol3.h>
+#include <protocol3_3/protocol3_3.h>
 
 #include <vlibapi/api.h>
 #include <vlibmemory/api.h>
 #include <vpp/app/version.h>
 #include <stdbool.h>
 
-#include <protocol3/protocol3.api_enum.h>
-#include <protocol3/protocol3.api_types.h>
+#include <protocol3_3/protocol3_3.api_enum.h>
+#include <protocol3_3/protocol3_3.api_types.h>
 
 #define REPLY_MSG_ID_BASE pmp->msg_id_base
 #include <vlibapi/api_helper_macros.h>
 
-protocol3_main_t protocol3_main;
+protocol3_3_main_t protocol3_3_main;
 
 /* Action function shared between message handler and debug CLI */
 
-int protocol3_enable_disable (protocol3_main_t * pmp, u32 sw_if_index,
+int protocol3_3_enable_disable (protocol3_3_main_t * pmp, u32 sw_if_index,
                                    int enable_disable)
 {
   vnet_sw_interface_t * sw;
@@ -50,25 +50,25 @@ int protocol3_enable_disable (protocol3_main_t * pmp, u32 sw_if_index,
   if (sw->type != VNET_SW_INTERFACE_TYPE_HARDWARE)
     return VNET_API_ERROR_INVALID_SW_IF_INDEX;
 
-  protocol3_create_periodic_process (pmp);
+  protocol3_3_create_periodic_process (pmp);
 
-  vnet_feature_enable_disable ("device-input", "protocol3",
+  vnet_feature_enable_disable ("device-input", "protocol3_3",
                                sw_if_index, enable_disable, 0, 0);
 
   /* Send an event to enable/disable the periodic scanner process */
   vlib_process_signal_event (pmp->vlib_main,
                              pmp->periodic_node_index,
-                             PROTOCOL3_EVENT_PERIODIC_ENABLE_DISABLE,
+                             PROTOCOL3_3_EVENT_PERIODIC_ENABLE_DISABLE,
                             (uword)enable_disable);
   return rv;
 }
 
 static clib_error_t *
-protocol3_enable_disable_command_fn (vlib_main_t * vm,
+protocol3_3_enable_disable_command_fn (vlib_main_t * vm,
                                    unformat_input_t * input,
                                    vlib_cli_command_t * cmd)
 {
-  protocol3_main_t * pmp = &protocol3_main;
+  protocol3_3_main_t * pmp = &protocol3_3_main;
   u32 sw_if_index = ~0;
   int enable_disable = 1;
 
@@ -88,7 +88,7 @@ protocol3_enable_disable_command_fn (vlib_main_t * vm,
   if (sw_if_index == ~0)
     return clib_error_return (0, "Please specify an interface...");
 
-  rv = protocol3_enable_disable (pmp, sw_if_index, enable_disable);
+  rv = protocol3_3_enable_disable (pmp, sw_if_index, enable_disable);
 
   switch(rv)
     {
@@ -105,66 +105,65 @@ protocol3_enable_disable_command_fn (vlib_main_t * vm,
     break;
 
   default:
-    return clib_error_return (0, "protocol3_enable_disable returned %d",
+    return clib_error_return (0, "protocol3_3_enable_disable returned %d",
                               rv);
     }
   return 0;
 }
 
 /* *INDENT-OFF* */
-VLIB_CLI_COMMAND (protocol3_enable_disable_command, static) =
+VLIB_CLI_COMMAND (protocol3_3_enable_disable_command, static) =
 {
-  .path = "protocol3 enable-disable",
+  .path = "protocol3_3 enable-disable",
   .short_help =
-  "protocol3 enable-disable <interface-name> [disable]",
-  .function = protocol3_enable_disable_command_fn,
+  "protocol3_3 enable-disable <interface-name> [disable]",
+  .function = protocol3_3_enable_disable_command_fn,
 };
 /* *INDENT-ON* */
 
 /* API message handler */
-static void vl_api_protocol3_enable_disable_t_handler
-(vl_api_protocol3_enable_disable_t * mp)
+static void vl_api_protocol3_3_enable_disable_t_handler
+(vl_api_protocol3_3_enable_disable_t * mp)
 {
-  vl_api_protocol3_enable_disable_reply_t * rmp;
-  protocol3_main_t * pmp = &protocol3_main;
+  vl_api_protocol3_3_enable_disable_reply_t * rmp;
+  protocol3_3_main_t * pmp = &protocol3_3_main;
   int rv;
 
-  rv = protocol3_enable_disable (pmp, ntohl(mp->sw_if_index),
+  rv = protocol3_3_enable_disable (pmp, ntohl(mp->sw_if_index),
                                       (int) (mp->enable_disable));
 
-  REPLY_MACRO(VL_API_PROTOCOL3_ENABLE_DISABLE_REPLY);
+  REPLY_MACRO(VL_API_PROTOCOL3_3_ENABLE_DISABLE_REPLY);
 }
 
 /* API definitions */
-#include <protocol3/protocol3.api.c>
+#include <protocol3_3/protocol3_3.api.c>
 
-static clib_error_t * protocol3_init (vlib_main_t * vm)
+static clib_error_t * protocol3_3_init (vlib_main_t * vm)
 {
-  protocol3_main_t * pmp = &protocol3_main;
+  protocol3_3_main_t * pmp = &protocol3_3_main;
   clib_error_t * error = 0;
 
   pmp->vlib_main = vm;
   pmp->vnet_main = vnet_get_main();
 
-  /* Add our API messages to the global name_crc hash table */
-  pmp->msg_id_base = setup_message_id_table ();
-
-  // 初始化 protocol1_main_t 中的临时变量内存
   vec_resize(pmp->temp_vec, 4 * sizeof(u64));
   vec_validate(pmp->temp_vec, 4 * sizeof(u64));
+
+  /* Add our API messages to the global name_crc hash table */
+  pmp->msg_id_base = setup_message_id_table ();
 
   return error;
 }
 
-VLIB_INIT_FUNCTION (protocol3_init);
+VLIB_INIT_FUNCTION (protocol3_3_init);
 
 /* *INDENT-OFF* */
-VNET_FEATURE_INIT (protocol3, static) =
+VNET_FEATURE_INIT (protocol3_3, static) =
 {
   .arc_name = "ip4-unicast",
-  .node_name = "protocol3",
-  .runs_before = VNET_FEATURES ("protocol3_2"),
-  .runs_after = VNET_FEATURES ("dispatcher")
+  .node_name = "protocol3_3",
+  .runs_before = VNET_FEATURES ("ip4-lookup"),
+  .runs_after = VNET_FEATURES ("protocol3_2")
 };
 /* *INDENT-ON */
 
@@ -172,7 +171,7 @@ VNET_FEATURE_INIT (protocol3, static) =
 VLIB_PLUGIN_REGISTER () =
 {
   .version = VPP_BUILD_VER,
-  .description = "protocol3 plugin description goes here",
+  .description = "protocol3_3 plugin description goes here",
 };
 /* *INDENT-ON* */
 

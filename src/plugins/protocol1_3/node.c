@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <protocol1/protocol1.h>
+#include <protocol1_3/protocol1_3.h>
 #include <vlib/vlib.h>
 #include <vnet/pg/pg.h>
 #include <vnet/vnet.h>
@@ -27,7 +27,7 @@ typedef struct {
   u8 src_ip[4];
   u8 dst_ip[4];
   u16 current_length;
-} protocol1_trace_t;
+} protocol1_3_trace_t;
 
 #ifndef CLIB_MARCH_VARIANT
 static u8 *my_format_ip_address(u8 *s, va_list *args) {
@@ -36,49 +36,49 @@ static u8 *my_format_ip_address(u8 *s, va_list *args) {
 }
 
 /* packet trace format function */
-static u8 *format_protocol1_trace(u8 *s, va_list *args) {
+static u8 *format_protocol1_3_trace(u8 *s, va_list *args) {
   CLIB_UNUSED(vlib_main_t * vm) = va_arg(*args, vlib_main_t *);
   CLIB_UNUSED(vlib_node_t * node) = va_arg(*args, vlib_node_t *);
-  protocol1_trace_t *t = va_arg(*args, protocol1_trace_t *);
+  protocol1_3_trace_t *t = va_arg(*args, protocol1_3_trace_t *);
 
-  s = format(s, "protocol1: next index %d\n", t->next_index);
+  s = format(s, "protocol1_3: next index %d\n", t->next_index);
   s = format(s, "  src_ip %U -> dst_ip %U", my_format_ip_address, t->src_ip,
              my_format_ip_address, t->dst_ip);
   s = format(s, "  current_length: %d", t->current_length);
   return s;
 }
 
-vlib_node_registration_t protocol1_node;
+vlib_node_registration_t protocol1_3_node;
 
 #endif /* CLIB_MARCH_VARIANT */
 
-#define foreach_protocol1_error                                                \
-  _(PROCESSED, "protocol1 error processed packets")
+#define foreach_protocol1_3_error                                                \
+  _(PROCESSED, "protocol1_3 error processed packets")
 
 typedef enum {
-#define _(sym, str) PROTOCOL1_ERROR_##sym,
-  foreach_protocol1_error
+#define _(sym, str) PROTOCOL1_3_ERROR_##sym,
+  foreach_protocol1_3_error
 #undef _
-      PROTOCOL1_N_ERROR,
-} protocol1_error_t;
+      PROTOCOL1_3_N_ERROR,
+} protocol1_3_error_t;
 
 #ifndef CLIB_MARCH_VARIANT
-static char *protocol1_error_strings[] = {
+static char *protocol1_3_error_strings[] = {
 #define _(sym, string) string,
-    foreach_protocol1_error
+    foreach_protocol1_3_error
 #undef _
 };
 #endif /* CLIB_MARCH_VARIANT */
 
 typedef enum {
   CHAIN_NEXT_NODE,
-  PROTOCOL1_N_NEXT,
-} protocol1_next_t;
+  PROTOCOL1_3_N_NEXT,
+} protocol1_3_next_t;
 
-VLIB_NODE_FN(protocol1_node)
+VLIB_NODE_FN(protocol1_3_node)
 (vlib_main_t *vm, vlib_node_runtime_t *node, vlib_frame_t *frame) {
   u32 n_left_from, *from, *to_next;
-  protocol1_next_t next_index;
+  protocol1_3_next_t next_index;
   u32 pkts_processed = 0;
 
   from = vlib_frame_vector_args(frame);
@@ -122,13 +122,13 @@ VLIB_NODE_FN(protocol1_node)
       b1 = vlib_get_buffer(vm, bi1);
 
       // 使用宏定义的函数处理数据包
-      DUAL_PKT_PROCESS_FN(protocol1);
+      DUAL_PKT_PROCESS_FN(protocol1_3);
 
       pkts_processed += 2;
 
       if (PREDICT_FALSE((node->flags & VLIB_NODE_FLAG_TRACE))) {
         if (b0->flags & VLIB_BUFFER_IS_TRACED) {
-          protocol1_trace_t *t = vlib_add_trace(vm, node, b0, sizeof(*t));
+          protocol1_3_trace_t *t = vlib_add_trace(vm, node, b0, sizeof(*t));
           t->next_index = next0;
           ip4_header_t *ip0 = vlib_buffer_get_current(b0);
           clib_memcpy(t->src_ip, &ip0->src_address, sizeof(t->src_ip));
@@ -136,7 +136,7 @@ VLIB_NODE_FN(protocol1_node)
           t->current_length = b0->current_length;
         }
         if (b1->flags & VLIB_BUFFER_IS_TRACED) {
-          protocol1_trace_t *t = vlib_add_trace(vm, node, b1, sizeof(*t));
+          protocol1_3_trace_t *t = vlib_add_trace(vm, node, b1, sizeof(*t));
           t->next_index = next1;
           ip4_header_t *ip1 = vlib_buffer_get_current(b1);
           clib_memcpy(t->src_ip, &ip1->src_address, sizeof(t->src_ip));
@@ -166,13 +166,13 @@ VLIB_NODE_FN(protocol1_node)
       b0 = vlib_get_buffer(vm, bi0);
 
       // 使用宏定义的函数处理数据包
-      SINGLE_PKT_PROCESS_FN(protocol1);
+      SINGLE_PKT_PROCESS_FN(protocol1_3);
 
       pkts_processed += 1;
 
       if (PREDICT_FALSE((node->flags & VLIB_NODE_FLAG_TRACE))) {
         if (b0->flags & VLIB_BUFFER_IS_TRACED) {
-          protocol1_trace_t *t = vlib_add_trace(vm, node, b0, sizeof(*t));
+          protocol1_3_trace_t *t = vlib_add_trace(vm, node, b0, sizeof(*t));
           t->next_index = next0;
           ip4_header_t *ip0 = vlib_buffer_get_current(b0);
           clib_memcpy(t->src_ip, &ip0->src_address, sizeof(t->src_ip));
@@ -189,26 +189,26 @@ VLIB_NODE_FN(protocol1_node)
     vlib_put_next_frame(vm, node, next_index, n_left_to_next);
   }
 
-  vlib_node_increment_counter(vm, protocol1_node.index,
-                              PROTOCOL1_ERROR_PROCESSED, pkts_processed);
+  vlib_node_increment_counter(vm, protocol1_3_node.index,
+                              PROTOCOL1_3_ERROR_PROCESSED, pkts_processed);
   return frame->n_vectors;
 }
 
 /* *INDENT-OFF* */
 #ifndef CLIB_MARCH_VARIANT
-VLIB_REGISTER_NODE(protocol1_node) = {
-    .name = "protocol1",
+VLIB_REGISTER_NODE(protocol1_3_node) = {
+    .name = "protocol1_3",
     .vector_size = sizeof(u32),
-    .format_trace = format_protocol1_trace,
+    .format_trace = format_protocol1_3_trace,
     .type = VLIB_NODE_TYPE_INTERNAL,
 
-    .n_errors = ARRAY_LEN(protocol1_error_strings),
-    .error_strings = protocol1_error_strings,
+    .n_errors = ARRAY_LEN(protocol1_3_error_strings),
+    .error_strings = protocol1_3_error_strings,
 
-    .n_next_nodes = PROTOCOL1_N_NEXT,
+    .n_next_nodes = PROTOCOL1_3_N_NEXT,
 
     /* edit / add dispositions here */
-    .next_nodes = {[CHAIN_NEXT_NODE] = "protocol1_2"},
+    .next_nodes = {[CHAIN_NEXT_NODE] = "ip4-lookup"},
 };
 #endif /* CLIB_MARCH_VARIANT */
 /* *INDENT-ON* */

@@ -150,8 +150,8 @@ static clib_error_t * protocol2_init (vlib_main_t * vm)
   pmp->msg_id_base = setup_message_id_table ();
 
   // 初始化 protocol1_main_t 中的临时变量内存
-  vec_resize(pmp->temp_vec, CAL_HASH_NUM);
-  vec_validate(pmp->temp_vec, CAL_HASH_NUM - 1);
+  vec_resize(pmp->temp_vec, 4 * sizeof(u64));
+  vec_validate(pmp->temp_vec, 4 * sizeof(u64));
 
   return error;
 }
@@ -163,7 +163,7 @@ VNET_FEATURE_INIT (protocol2, static) =
 {
   .arc_name = "ip4-unicast",
   .node_name = "protocol2",
-  .runs_before = VNET_FEATURES ("ip4-lookup"),
+  .runs_before = VNET_FEATURES ("protocol2_2"),
   .runs_after = VNET_FEATURES ("dispatcher")
 };
 /* *INDENT-ON */

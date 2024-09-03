@@ -20,6 +20,7 @@
 #include <vnet/vnet.h>
 #include <vppinfra/error.h>
 #include <vppinfra/xxhash.h>
+#include "../protocol_node_fn.h"
 
 typedef struct {
   u32 next_index;
@@ -40,7 +41,7 @@ static u8 *format_protocol2_trace(u8 *s, va_list *args) {
   CLIB_UNUSED(vlib_node_t * node) = va_arg(*args, vlib_node_t *);
   protocol2_trace_t *t = va_arg(*args, protocol2_trace_t *);
 
-  s = format(s, "Protocol2: next index %d\n", t->next_index);
+  s = format(s, "protocol2: next index %d\n", t->next_index);
   s = format(s, "  src_ip %U -> dst_ip %U", my_format_ip_address, t->src_ip,
              my_format_ip_address, t->dst_ip);
   s = format(s, "  current_length: %d", t->current_length);
@@ -70,8 +71,7 @@ static char *protocol2_error_strings[] = {
 #endif /* CLIB_MARCH_VARIANT */
 
 typedef enum {
-  PROTOCOL2_NEXT_IP4_LOOKUP,
-  PROTOCOL2_NEXT_DROP,
+  CHAIN_NEXT_NODE,
   PROTOCOL2_N_NEXT,
 } protocol2_next_t;
 
@@ -91,8 +91,8 @@ VLIB_NODE_FN(protocol2_node)
     vlib_get_next_frame(vm, node, next_index, to_next, n_left_to_next);
 
     while (n_left_from >= 4 && n_left_to_next >= 2) {
-      u32 next0 = PROTOCOL2_NEXT_IP4_LOOKUP;
-      u32 next1 = PROTOCOL2_NEXT_IP4_LOOKUP;
+      u32 next0 = CHAIN_NEXT_NODE;
+      u32 next1 = CHAIN_NEXT_NODE;
       u32 bi0, bi1;
       vlib_buffer_t *b0, *b1;
 
@@ -106,8 +106,8 @@ VLIB_NODE_FN(protocol2_node)
         vlib_prefetch_buffer_header(p2, LOAD);
         vlib_prefetch_buffer_header(p3, LOAD);
 
-        CLIB_PREFETCH(p2->data, CAL_HASH_NUM * HASH_BYTES, STORE);
-        CLIB_PREFETCH(p3->data, CAL_HASH_NUM * HASH_BYTES, STORE);
+        CLIB_PREFETCH(p2->data, CLIB_CACHE_LINE_BYTES, STORE);
+        CLIB_PREFETCH(p3->data, CLIB_CACHE_LINE_BYTES, STORE);
       }
 
       /* speculatively enqueue b0 and b1 to the current next frame */
@@ -121,35 +121,8 @@ VLIB_NODE_FN(protocol2_node)
       b0 = vlib_get_buffer(vm, bi0);
       b1 = vlib_get_buffer(vm, bi1);
 
-      /*check that packet size is grater than hash key size*/
-      if (PREDICT_TRUE(b0->current_length >= CAL_HASH_NUM * HASH_BYTES)) {
-        int i;
-        u64 *pos, hash;
-        pos = vlib_buffer_get_current(b0);
-        for (i = 0; i < CAL_HASH_NUM; i++) {
-          hash = clib_xxhash(*pos);
-          protocol2_main.temp_vec[i] = hash;
-          pos += 1;
-        }
-      } else {
-        /*drop packet*/
-        next0 = PROTOCOL2_NEXT_DROP;
-      }
-
-      /*check that packet size is grater than hash key size*/
-      if (PREDICT_TRUE(b1->current_length >= CAL_HASH_NUM * HASH_BYTES)) {
-        int i;
-        u64 *pos, hash;
-        pos = vlib_buffer_get_current(b1);
-        for (i = 0; i < CAL_HASH_NUM; i++) {
-          hash = clib_xxhash(*pos);
-          protocol2_main.temp_vec[i] = hash;
-          pos += 1;
-        }
-      } else {
-        /*drop packet*/
-        next1 = PROTOCOL2_NEXT_DROP;
-      }
+      // 使用宏定义的函数处理数据包
+      DUAL_PKT_PROCESS_FN(protocol2);
 
       pkts_processed += 2;
 
@@ -180,7 +153,7 @@ VLIB_NODE_FN(protocol2_node)
     while (n_left_from > 0 && n_left_to_next > 0) {
       u32 bi0;
       vlib_buffer_t *b0;
-      u32 next0 = PROTOCOL2_NEXT_IP4_LOOKUP;
+      u32 next0 = CHAIN_NEXT_NODE;
 
       /* speculatively enqueue b0 to the current next frame */
       bi0 = from[0];
@@ -191,23 +164,11 @@ VLIB_NODE_FN(protocol2_node)
       n_left_to_next -= 1;
 
       b0 = vlib_get_buffer(vm, bi0);
-      /*
-       * Direct from the driver, we should be at offset 0
-       * aka at &b0->data[0]
-       */
-      if (PREDICT_TRUE(b0->current_length >= CAL_HASH_NUM * HASH_BYTES)) {
-        int i;
-        u64 *pos, hash;
-        pos = vlib_buffer_get_current(b0);
-        for (i = 0; i < CAL_HASH_NUM; i++) {
-          hash = clib_xxhash(*pos);
-          protocol2_main.temp_vec[i] = hash;
-          pos += 1;
-        }
-      } else {
-        /*drop packet*/
-        next0 = PROTOCOL2_NEXT_DROP;
-      }
+
+      // 使用宏定义的函数处理数据包
+      SINGLE_PKT_PROCESS_FN(protocol2);
+
+      pkts_processed += 1;
 
       if (PREDICT_FALSE((node->flags & VLIB_NODE_FLAG_TRACE))) {
         if (b0->flags & VLIB_BUFFER_IS_TRACED) {
@@ -219,8 +180,6 @@ VLIB_NODE_FN(protocol2_node)
           t->current_length = b0->current_length;
         }
       }
-
-      pkts_processed += 1;
 
       /* verify speculative enqueue, maybe switch current next frame */
       vlib_validate_buffer_enqueue_x1(vm, node, next_index, to_next,
@@ -249,8 +208,7 @@ VLIB_REGISTER_NODE(protocol2_node) = {
     .n_next_nodes = PROTOCOL2_N_NEXT,
 
     /* edit / add dispositions here */
-    .next_nodes = {[PROTOCOL2_NEXT_IP4_LOOKUP] = "ip4-lookup",
-                   [PROTOCOL2_NEXT_DROP] = "ip4-drop"},
+    .next_nodes = {[CHAIN_NEXT_NODE] = "protocol2_2"},
 };
 #endif /* CLIB_MARCH_VARIANT */
 /* *INDENT-ON* */
