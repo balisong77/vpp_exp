@@ -24,12 +24,13 @@ typedef struct {
   u32 next_index;
   u8 src_ip[4];
   u8 dst_ip[4];
+  u16 current_length;
 } dispatcher_trace_t;
 
 #ifndef CLIB_MARCH_VARIANT
 static u8 *my_format_ip_address(u8 *s, va_list *args) {
   u8 *a = va_arg(*args, u8 *);
-  return format(s, "%02x.%02x.%02x.%02x", a[0], a[1], a[2], a[3]);
+  return format(s, "%3u.%3u.%3u.%3u", a[0], a[1], a[2], a[3]);
 }
 
 /* packet trace format function */
@@ -41,6 +42,7 @@ static u8 *format_dispatcher_trace(u8 *s, va_list *args) {
   s = format(s, "DISPATCHER: next index %d\n", t->next_index);
   s = format(s, "  src_ip %U -> dst_ip %U", my_format_ip_address, t->src_ip,
              my_format_ip_address, t->dst_ip);
+  s = format(s, "  current_length: %d", t->current_length);
   return s;
 }
 
@@ -74,13 +76,6 @@ typedef enum {
   DISPATCHER_N_NEXT,
 } dispatcher_next_t;
 
-#define foreach_mac_address_offset                                             \
-  _(0)                                                                         \
-  _(1)                                                                         \
-  _(2)                                                                         \
-  _(3)                                                                         \
-  _(4)                                                                         \
-  _(5)
 
 VLIB_NODE_FN(dispatcher_node)
 (vlib_main_t *vm, vlib_node_runtime_t *node, vlib_frame_t *frame) {
@@ -180,12 +175,14 @@ VLIB_NODE_FN(dispatcher_node)
           t->next_index = next0;
           clib_memcpy(t->src_ip, &ip0->src_address, sizeof(t->src_ip));
           clib_memcpy(t->dst_ip, &ip0->dst_address, sizeof(t->dst_ip));
+          t->current_length = b0->current_length;
         }
         if (b1->flags & VLIB_BUFFER_IS_TRACED) {
           dispatcher_trace_t *t = vlib_add_trace(vm, node, b1, sizeof(*t));
           t->next_index = next1;
           clib_memcpy(t->src_ip, &ip1->src_address, sizeof(t->src_ip));
           clib_memcpy(t->dst_ip, &ip1->dst_address, sizeof(t->dst_ip));
+          t->current_length = b0->current_length;
         }
       }
 
@@ -240,6 +237,7 @@ VLIB_NODE_FN(dispatcher_node)
         t->next_index = next0;
         clib_memcpy(t->src_ip, &ip0->src_address, sizeof(t->src_ip));
         clib_memcpy(t->dst_ip, &ip0->dst_address, sizeof(t->dst_ip));
+        t->current_length = b0->current_length;
       }
 
       /* verify speculative enqueue, maybe switch current next frame */

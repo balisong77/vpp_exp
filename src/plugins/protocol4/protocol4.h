@@ -25,7 +25,7 @@
 #include <vppinfra/hash.h>
 #include <vppinfra/error.h>
 
-#define CAL_HASH_NUM 150
+#define CAL_HASH_NUM 25
 #define HASH_BYTES 8
 
 typedef struct {
