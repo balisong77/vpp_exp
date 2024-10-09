@@ -140,3 +140,4 @@ compile_commands.json
 /build
 *.trace
 *.o
+*ddio
