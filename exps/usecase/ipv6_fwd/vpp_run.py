@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 import subprocess
-import sys, os, time, getopt, re
+import sys, os, time, re
 import argparse
 
 # 使用示例：sudo python3 vpp_run.py -c 10,11-12
@@ -22,7 +22,7 @@ VPP_REMOTE_PIDFILE = os.path.join(VPP_RUNTIME_DIR, "vpp_remote.pid")
 pcie_addr = ["0000:84:00.0", "0000:84:00.1"]
 
 def help_func():
-    print("Usage: python3 run_vpp_remote.py options")
+    print("Usage: python3 vpp_run.py options")
     print()
     print("Options:")
     print("    -c <core list>       set CPU affinity. Assign VPP main thread to 1st core")
@@ -30,7 +30,7 @@ def help_func():
     print("                         Cores are separated by commas, and worker cores can include ranges.")
     print()
     print("Example:")
-    print("    python3 run_vpp_remote.py -c 1,2-3,6")
+    print("    python3 vpp_run.py -c 1,2-3,6")
     print()
     sys.exit(0)
 
@@ -43,6 +43,7 @@ def err_cleanup():
         os.remove(VPP_REMOTE_PIDFILE)
     sys.exit(1)
 
+# 通过worker核心列表计算worker数量，用于设置dpdk网卡队列数
 def cal_cores(worker_cores):
     count = 0
     for worker_core in worker_cores:
@@ -66,7 +67,7 @@ def setup_iface():
     subprocess.run(["sudo", vppctl_binary, "-s", SOCKFILE, "set", "interface", "ip", "address", Ethernet1, "::2:1/112"])
 
     # 检查网卡是否启动成功
-    output = subprocess.check_output([vppctl_binary, "-s", SOCKFILE, "show", "interface"]).decode()
+    output = subprocess.check_output(["sudo", vppctl_binary, "-s", SOCKFILE, "show", "interface"]).decode()
     if Ethernet0 in output and Ethernet1 in output:
         print("Successfully set up interfaces!")
     else:
@@ -91,7 +92,7 @@ if __name__ == "__main__":
     core_list = args.core
 
     main_core = None
-    worker_core = None
+    worker_core_list = None
 
     # 正则匹配 -c 传入的 main/worker core 设置
     if not re.match(r"^[0-9]{1,3}((,[0-9]{1,3})|(,[0-9]{1,3}-[0-9]{1,3}))*$", core_list):
@@ -99,15 +100,16 @@ if __name__ == "__main__":
         help_func()
 
     main_core = core_list.split(",")[0]
-    worker_core = core_list.split(",")[1:]
+    worker_core_list = core_list.split(",")[1:]
+    worker_core = ",".join(worker_core_list)
 
-    if main_core == worker_core:
+    if main_core == worker_core_list:
         print("error: \"-c\" option bad usage")
         help_func()
-    queues_count = cal_cores(worker_core)
+    queues_count = cal_cores(worker_core_list)
     print("queues_count:", queues_count)
 
-    if not main_core or not worker_core:
+    if not main_core or not worker_core_list:
         print("require an option: \"-c\"")
         help_func()
 
@@ -126,10 +128,10 @@ if __name__ == "__main__":
     time.sleep(0.5)
 
     # 尝试连接vppctl socket
-    max_conn_retries = 10
+    max_conn_retries = 15
     for conn_count in range(max_conn_retries):
         try:
-            output = subprocess.check_output([vppctl_binary, "-s", SOCKFILE, "show", "threads"]).decode()
+            output = subprocess.check_output(["sudo", vppctl_binary, "-s", SOCKFILE, "show", "threads"]).decode()
             if not output:
                 err_cleanup()
             break
